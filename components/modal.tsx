@@ -35,7 +35,7 @@ export function Modal({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-100 flex items-start justify-center overflow-y-auto p-3 sm:p-6">
+    <div className="fixed inset-0 z-100 flex items-center justify-center p-3 sm:p-6">
       <div
         className="fixed inset-0 bg-foreground/40 backdrop-blur-sm"
         onClick={onClose}
@@ -46,7 +46,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={labelledBy}
         className={cn(
-          'animate-fade-in-up relative z-10 my-auto w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl',
+          'animate-fade-in-up relative z-10 flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl',
           className,
         )}
       >
