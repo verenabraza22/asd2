@@ -103,7 +103,7 @@ export function AchievementModal({
       <div className="absolute inset-0 bg-foreground/50 backdrop-blur-sm" />
       <Confetti />
 
-      <div className="animate-fade-in-up relative z-10 w-full max-w-md overflow-hidden rounded-3xl bg-card shadow-2xl">
+      <div className="animate-fade-in-up relative z-10 flex max-h-full w-full max-w-md flex-col overflow-y-auto rounded-3xl bg-card shadow-2xl">
         {/* festive banner top */}
         <div className="relative flex flex-col items-center gap-4 bg-primary/10 px-6 pb-6 pt-8 text-center">
           <button
@@ -226,3 +226,4 @@ export function AchievementModal({
     </div>
   )
 }
+
