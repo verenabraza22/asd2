@@ -107,8 +107,11 @@ export function PendingSection() {
       )}
 
       {/* Add modal */}
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Agregar a pendientes">
-        <div className="space-y-4">
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} labelledBy="pending-add-title">
+        <div className="max-h-full space-y-4 overflow-y-auto p-5 sm:p-6">
+          <h3 id="pending-add-title" className="font-serif text-xl font-bold">
+            Agregar a pendientes
+          </h3>
           <CoverScanner onDetected={setScanText} />
           <div>
             <p className="mb-1.5 text-sm font-medium text-foreground">Buscar libro</p>
