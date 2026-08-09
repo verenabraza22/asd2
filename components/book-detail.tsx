@@ -50,7 +50,7 @@ export function BookDetail({ book, onClose, onEdit }: BookDetailProps) {
       labelledBy="detail-title"
       className="max-w-3xl"
     >
-      <div className="max-h-[88dvh] overflow-y-auto">
+      <div className="max-h-full overflow-y-auto">
         <div className="flex flex-col gap-5 p-5 sm:flex-row sm:p-6">
           {/* Left: large cover */}
           <div className="mx-auto w-40 shrink-0 sm:mx-0 sm:w-52">
@@ -173,3 +173,4 @@ function Row({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
+
