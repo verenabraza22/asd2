@@ -130,7 +130,7 @@ export function BookForm({
 
   return (
     <Modal open={open} onClose={onClose} labelledBy="book-form-title">
-      <div className="max-h-full overflow-y-auto p-5 sm:p-6">
+      <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
         <h3 id="book-form-title" className="mb-1 font-serif text-xl font-bold">
           {editingId ? 'Editar' : 'Agregar'}{' '}
           {isAudio ? 'audiolibro' : 'libro'}
