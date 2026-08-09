@@ -108,7 +108,10 @@ export function PendingSection() {
 
       {/* Add modal */}
       <Modal open={addOpen} onClose={() => setAddOpen(false)} labelledBy="pending-add-title">
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 sm:p-6">
+        <div
+          className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-5 sm:p-6"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
           <h3 id="pending-add-title" className="font-serif text-xl font-bold">
             Agregar a pendientes
           </h3>
@@ -230,3 +233,4 @@ function ManualWishlistForm({
     </form>
   )
 }
+
