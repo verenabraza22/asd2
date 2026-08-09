@@ -130,7 +130,10 @@ export function BookForm({
 
   return (
     <Modal open={open} onClose={onClose} labelledBy="book-form-title">
-      <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
+      <div
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
         <h3 id="book-form-title" className="mb-1 font-serif text-xl font-bold">
           {editingId ? 'Editar' : 'Agregar'}{' '}
           {isAudio ? 'audiolibro' : 'libro'}
@@ -349,7 +352,7 @@ export function BookForm({
                 </label>
                 <textarea
                   id="bf-reflections"
-                  className={cn(FIELD, 'min-h-20 resize-y')}
+                  className={cn(FIELD, 'min-h-20 resize-none sm:resize-y')}
                   placeholder="Tus frases favoritas o reflexiones sobre el libro…"
                   value={reflections}
                   onChange={(e) => setReflections(e.target.value)}
@@ -366,7 +369,7 @@ export function BookForm({
           </label>
           <textarea
             id="bf-synopsis"
-            className={cn(FIELD, 'min-h-20 resize-y')}
+            className={cn(FIELD, 'min-h-20 resize-none sm:resize-y')}
             value={synopsis}
             onChange={(e) => setSynopsis(e.target.value)}
           />
@@ -419,4 +422,3 @@ function StatusPill({
     </button>
   )
 }
-
