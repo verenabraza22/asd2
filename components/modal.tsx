@@ -46,7 +46,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={labelledBy}
         className={cn(
-          'animate-fade-in-up relative z-10 flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl',
+          'animate-fade-in-up relative z-10 flex max-h-[calc(100dvh-1.5rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl sm:max-h-[calc(100dvh-3rem)]',
           className,
         )}
       >
@@ -63,3 +63,4 @@ export function Modal({
     </div>
   )
 }
+
