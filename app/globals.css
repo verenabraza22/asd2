@@ -1,0 +1,295 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.theme-mocha *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-gold: var(--gold);
+  --color-wood: var(--wood);
+  --color-wood-dark: var(--wood-dark);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --font-sans: var(--font-nunito), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-cursive: var(--font-caveat), 'Segoe Script', cursive;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* ============ Modo Claro (Cream & Paper) ============ */
+:root,
+.theme-cream {
+  color-scheme: light;
+  --background: #faf6f0;
+  --foreground: #2c221e;
+  --card: #fffcf6;
+  --card-foreground: #2c221e;
+  --popover: #fffcf6;
+  --popover-foreground: #2c221e;
+  --primary: #6f4e37;
+  --primary-foreground: #faf6f0;
+  --secondary: #ece0c9;
+  --secondary-foreground: #4a3626;
+  --muted: #efe7d8;
+  --muted-foreground: #8a7663;
+  --accent: #a67b5b;
+  --accent-foreground: #fffcf6;
+  --destructive: #a13d2d;
+  --destructive-foreground: #faf6f0;
+  --border: #e8dcc4;
+  --input: #e2d4ba;
+  --ring: #6f4e37;
+  --gold: #c9962e;
+  --wood: #8a6240;
+  --wood-dark: #5f4126;
+  --chart-1: #b5651d;
+  --chart-2: #c99a3b;
+  --chart-3: #4a5d3a;
+  --chart-4: #6f4e37;
+  --chart-5: #a67b5b;
+  --radius: 0.9rem;
+}
+
+/* ============ Modo Oscuro (Mocha Night) ============ */
+.theme-mocha {
+  color-scheme: dark;
+  --background: #1a1412;
+  --foreground: #f4eae1;
+  --card: #2a201c;
+  --card-foreground: #f4eae1;
+  --popover: #2a201c;
+  --popover-foreground: #f4eae1;
+  --primary: #d4a373;
+  --primary-foreground: #1a1412;
+  --secondary: #3a2e28;
+  --secondary-foreground: #f4eae1;
+  --muted: #33271f;
+  --muted-foreground: #b39b87;
+  --accent: #e6b450;
+  --accent-foreground: #1a1412;
+  --destructive: #c96b57;
+  --destructive-foreground: #1a1412;
+  --border: #3e2f27;
+  --input: #3e2f27;
+  --ring: #d4a373;
+  --gold: #e6b450;
+  --wood: #4a352a;
+  --wood-dark: #2e2019;
+  --chart-1: #b5677a;
+  --chart-2: #5b7099;
+  --chart-3: #b08d57;
+  --chart-4: #9a6b9a;
+  --chart-5: #d4a373;
+  --radius: 0.9rem;
+}
+
+/* ============ Modo Pastel (Soft Cozy) ============ */
+.theme-pastel {
+  color-scheme: light;
+  --background: #fdf0ed;
+  --foreground: #5b4a53;
+  --card: #fff8f6;
+  --card-foreground: #5b4a53;
+  --popover: #fff8f6;
+  --popover-foreground: #5b4a53;
+  --primary: #a3b18a;
+  --primary-foreground: #2e3a24;
+  --secondary: #ecc9f0;
+  --secondary-foreground: #5b3a63;
+  --muted: #f7e6ea;
+  --muted-foreground: #a08a94;
+  --accent: #e2ace8;
+  --accent-foreground: #4a2f52;
+  --destructive: #d98a8a;
+  --destructive-foreground: #ffffff;
+  --border: #f2dce1;
+  --input: #edccd4;
+  --ring: #a3b18a;
+  --gold: #e0a93b;
+  --wood: #d9b8a8;
+  --wood-dark: #b8917f;
+  --chart-1: #eba0a8;
+  --chart-2: #a3b18a;
+  --chart-3: #c89ad6;
+  --chart-4: #e8ce7a;
+  --chart-5: #9ac4d6;
+  --radius: 1.1rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}
+
+/* Pastel theme uses a handwritten cursive font for main section titles only */
+.theme-pastel .section-title {
+  font-family: var(--font-cursive);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  /* Cursive faces read small, so bump the display size a touch */
+  font-size: 2.25rem;
+  line-height: 1.1;
+}
+@media (min-width: 640px) {
+  .theme-pastel .section-title {
+    font-size: 2.9rem;
+  }
+}
+
+/* Paper grain texture for the cozy background */
+.paper-texture {
+  background-image: radial-gradient(
+      circle at 1px 1px,
+      color-mix(in srgb, var(--foreground) 5%, transparent) 1px,
+      transparent 0
+    );
+  background-size: 22px 22px;
+}
+
+/* Wood grain gradient used by the virtual shelf */
+.wood-grain {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--wood) 88%, white) 0%,
+    var(--wood) 45%,
+    var(--wood-dark) 100%
+  );
+}
+
+/* Warm back wall behind the shelves */
+.shelf-wall {
+  background:
+    radial-gradient(
+      120% 80% at 50% 0%,
+      color-mix(in srgb, var(--wood) 22%, var(--card)) 0%,
+      color-mix(in srgb, var(--wood-dark) 16%, var(--card)) 100%
+    );
+}
+
+/* 3D depth for a book resting on the shelf */
+.book-3d {
+  box-shadow:
+    0 10px 16px -8px rgba(0, 0, 0, 0.5),
+    -2px 0 4px -2px rgba(0, 0, 0, 0.35);
+}
+.book-3d:hover {
+  box-shadow:
+    0 18px 26px -10px rgba(0, 0, 0, 0.55),
+    -3px 0 6px -2px rgba(0, 0, 0, 0.4);
+}
+
+/* Celebration confetti falling animation */
+@keyframes confetti-fall {
+  0% {
+    transform: translate3d(0, -12vh, 0) rotate(0deg);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--drift, 0), 112vh, 0)
+      rotate(var(--spin, 540deg));
+    opacity: 1;
+  }
+}
+.confetti-piece {
+  position: absolute;
+  top: 0;
+  width: 9px;
+  height: 14px;
+  border-radius: 2px;
+  will-change: transform;
+  animation: confetti-fall var(--dur, 3s) linear var(--delay, 0s) forwards;
+}
+
+/* Soft badge pop-in for the achievement medal */
+@keyframes badge-pop {
+  0% {
+    transform: scale(0.4) rotate(-12deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08) rotate(4deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+.badge-pop {
+  animation: badge-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes badge-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 16px color-mix(in srgb, var(--primary) 0%, transparent);
+  }
+}
+.badge-glow {
+  animation: badge-glow 2.4s ease-out infinite;
+}
+
+/* Cozy background watermarks (books, cups, leaves) at very low opacity */
+.cozy-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Cg fill='none' stroke='%23000000' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 18h14v20H14z M18 18v20'/%3E%3Cpath d='M58 62c0-2 1-3 3-3h12c2 0 3 1 3 3v8c0 3-2 5-5 5h-8c-3 0-5-2-5-5z M76 62h3c2 0 3 1 3 3s-1 3-3 3h-3'/%3E%3Cpath d='M30 74c6-2 10-6 12-14-8 0-13 5-12 14z M42 60c0-6 3-10 9-12-1 7-4 11-9 12z'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 132px 132px;
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.4s ease both;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted-foreground) 40%, transparent);
+  border-radius: 999px;
+}
