@@ -1,7 +1,8 @@
 'use client'
 
 import { PartyPopper, Rocket, Sparkles, Trophy, Wine, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 
 export interface Achievement {
@@ -77,6 +78,11 @@ export function AchievementModal({
   const { scope, goal, periodLabel } = achievement
   const [expanding, setExpanding] = useState(false)
   const [custom, setCustom] = useState('')
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const title =
     scope === 'annual'
@@ -93,7 +99,9 @@ export function AchievementModal({
     if (Number.isFinite(n) && n > goal) onExpand(n)
   }
 
-  return (
+  if (!mounted) return null
+
+  return createPortal(
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center p-4"
       role="dialog"
@@ -226,7 +234,7 @@ export function AchievementModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
-
