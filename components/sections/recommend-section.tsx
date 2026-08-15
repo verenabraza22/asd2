@@ -1,6 +1,15 @@
 'use client'
 
-import { Check, Compass, Loader2, Plus, Sparkles, TriangleAlert } from 'lucide-react'
+import {
+  BookCheck,
+  Check,
+  Compass,
+  Loader2,
+  Plus,
+  Sparkles,
+  TriangleAlert,
+  X,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { BookCover } from '../book-cover'
 import {
@@ -13,24 +22,48 @@ import { SectionHeader } from './section-header'
 
 type Phase = 'idle' | 'loading' | 'done' | 'error'
 
-export function RecommendSection() {
-  const { data, addWishlist } = useStore()
-  const [phase, setPhase] = useState<Phase>('idle')
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
-  const [added, setAdded] = useState<Set<string>>(new Set())
+const VISIBLE_COUNT = 8
 
-  const profile = useMemo(() => readerProfile(data.books), [data.books])
-  const hasEnough = profile.sampleSize > 0
+function keyOf(s: Suggestion) {
+  return `${s.title}|${s.author}`
+}
+
+export function RecommendSection() {
+  const { data, addWishlist, addRecommendPref, removeRecommendPref } =
+    useStore()
+  const [phase, setPhase] = useState<Phase>('idle')
+  const [pool, setPool] = useState<Suggestion[]>([])
+  const [shownKeys, setShownKeys] = useState<string[]>([])
+  const [added, setAdded] = useState<Set<string>>(new Set())
+  const [markedRead, setMarkedRead] = useState<Set<string>>(new Set())
+
+  const baseProfile = useMemo(() => readerProfile(data.books), [data.books])
+  const extraGenres = data.recommendPrefs?.extraGenres ?? []
+  const extraAuthors = data.recommendPrefs?.extraAuthors ?? []
+
+  const profile = useMemo(() => {
+    const genres = [...baseProfile.topGenres]
+    for (const g of extraGenres) if (!genres.includes(g)) genres.push(g)
+    const authors = [...baseProfile.topAuthors]
+    for (const a of extraAuthors) if (!authors.includes(a)) authors.push(a)
+    return { ...baseProfile, topGenres: genres, topAuthors: authors }
+  }, [baseProfile, extraGenres, extraAuthors])
+
+  const hasEnough =
+    baseProfile.sampleSize > 0 || extraGenres.length > 0 || extraAuthors.length > 0
+
+  const shown = shownKeys
+    .map((k) => pool.find((s) => keyOf(s) === k))
+    .filter((s): s is Suggestion => Boolean(s))
 
   async function loadRecommendations() {
     setPhase('loading')
+    setAdded(new Set())
+    setMarkedRead(new Set())
     try {
-      const results = await getRecommendations(
-        profile,
-        data.books,
-        data.wishlist,
-      )
-      setSuggestions(results)
+      const results = await getRecommendations(profile, data.books, data.wishlist)
+      setPool(results)
+      setShownKeys(results.slice(0, VISIBLE_COUNT).map(keyOf))
       setPhase(results.length ? 'done' : 'error')
     } catch {
       setPhase('error')
@@ -48,7 +81,22 @@ export function RecommendSection() {
       synopsis: s.synopsis,
       checked: false,
     })
-    setAdded((prev) => new Set(prev).add(s.title + s.author))
+    setAdded((prev) => new Set(prev).add(keyOf(s)))
+  }
+
+  function replaceWithNext(removedKey: string) {
+    setShownKeys((prev) => {
+      const without = prev.filter((k) => k !== removedKey)
+      const used = new Set([...without, removedKey])
+      const next = pool.find((s) => !used.has(keyOf(s)))
+      return next ? [...without, keyOf(next)] : without
+    })
+  }
+
+  function markAsRead(s: Suggestion) {
+    const key = keyOf(s)
+    setMarkedRead((prev) => new Set(prev).add(key))
+    replaceWithNext(key)
   }
 
   return (
@@ -66,9 +114,26 @@ export function RecommendSection() {
             Necesitamos conocer tus gustos
           </p>
           <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground text-pretty">
-            Valorá algunos libros con 4 o 5 estrellas en tu glosario y volvé
-            para descubrir lecturas hechas a tu medida.
+            Valorá algunos libros con 4 o 5 estrellas en tu glosario, o agregá
+            géneros y autores manualmente abajo, para descubrir lecturas
+            hechas a tu medida.
           </p>
+          <div className="mx-auto mt-6 max-w-sm space-y-4 text-left">
+            <TagEditor
+              label="Géneros favoritos"
+              placeholder="Ej: Fantasía"
+              tags={extraGenres}
+              onAdd={(v) => addRecommendPref('genre', v)}
+              onRemove={(v) => removeRecommendPref('genre', v)}
+            />
+            <TagEditor
+              label="Autores favoritos"
+              placeholder="Ej: Gabriel García Márquez"
+              tags={extraAuthors}
+              onAdd={(v) => addRecommendPref('author', v)}
+              onRemove={(v) => removeRecommendPref('author', v)}
+            />
+          </div>
         </div>
       ) : (
         <>
@@ -78,9 +143,27 @@ export function RecommendSection() {
               Tu perfil lector
             </p>
             <div className="mt-3 flex flex-wrap gap-4">
-              <TasteGroup label="Géneros favoritos" items={profile.topGenres} />
-              <TasteGroup label="Autores que amás" items={profile.topAuthors} />
+              <TasteGroup label="Géneros favoritos" items={baseProfile.topGenres} />
+              <TasteGroup label="Autores que amás" items={baseProfile.topAuthors} />
             </div>
+
+            <div className="mt-5 grid gap-4 border-t border-border pt-5 sm:grid-cols-2">
+              <TagEditor
+                label="Agregar otro género"
+                placeholder="Ej: Fantasía"
+                tags={extraGenres}
+                onAdd={(v) => addRecommendPref('genre', v)}
+                onRemove={(v) => removeRecommendPref('genre', v)}
+              />
+              <TagEditor
+                label="Agregar otro autor"
+                placeholder="Ej: Isabel Allende"
+                tags={extraAuthors}
+                onAdd={(v) => addRecommendPref('author', v)}
+                onRemove={(v) => removeRecommendPref('author', v)}
+              />
+            </div>
+
             <button
               type="button"
               onClick={loadRecommendations}
@@ -117,8 +200,8 @@ export function RecommendSection() {
 
           {phase === 'done' && (
             <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {suggestions.map((s) => {
-                const key = s.title + s.author
+              {shown.map((s) => {
+                const key = keyOf(s)
                 const isAdded = added.has(key)
                 return (
                   <li
@@ -140,33 +223,51 @@ export function RecommendSection() {
                       <p className="line-clamp-1 text-sm text-muted-foreground">
                         {s.author}
                       </p>
-                      <button
-                        type="button"
-                        onClick={() => addToPending(s)}
-                        disabled={isAdded}
-                        className={`mt-3 inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition ${
-                          isAdded
-                            ? 'bg-secondary text-secondary-foreground'
-                            : 'bg-primary text-primary-foreground hover:opacity-90'
-                        }`}
-                      >
-                        {isAdded ? (
-                          <>
-                            <Check className="size-3.5" aria-hidden />
-                            En pendientes
-                          </>
-                        ) : (
-                          <>
-                            <Plus className="size-3.5" aria-hidden />
-                            Agregar a pendientes
-                          </>
-                        )}
-                      </button>
+                      <div className="mt-3 flex flex-col gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => addToPending(s)}
+                          disabled={isAdded}
+                          className={`inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition ${
+                            isAdded
+                              ? 'bg-secondary text-secondary-foreground'
+                              : 'bg-primary text-primary-foreground hover:opacity-90'
+                          }`}
+                        >
+                          {isAdded ? (
+                            <>
+                              <Check className="size-3.5" aria-hidden />
+                              En pendientes
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="size-3.5" aria-hidden />
+                              Agregar a pendientes
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => markAsRead(s)}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-full bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground transition hover:bg-muted"
+                          title="Ya lo leí, no lo agregues a la biblioteca"
+                        >
+                          <BookCheck className="size-3.5" aria-hidden />
+                          Ya lo leí
+                        </button>
+                      </div>
                     </div>
                   </li>
                 )
               })}
             </ul>
+          )}
+
+          {phase === 'done' && shown.length === 0 && (
+            <div className="rounded-2xl bg-card/70 p-6 text-center text-sm text-muted-foreground shadow-sm">
+              Ya viste todas las sugerencias de esta tanda. Tocá "Buscar de
+              nuevo" para descubrir más.
+            </div>
           )}
         </>
       )}
@@ -193,6 +294,76 @@ function TasteGroup({ label, items }: { label: string; items: string[] }) {
         ) : (
           <span className="text-xs text-muted-foreground">Aún sin datos</span>
         )}
+      </div>
+    </div>
+  )
+}
+
+function TagEditor({
+  label,
+  placeholder,
+  tags,
+  onAdd,
+  onRemove,
+}: {
+  label: string
+  placeholder: string
+  tags: string[]
+  onAdd: (value: string) => void
+  onRemove: (value: string) => void
+}) {
+  const [value, setValue] = useState('')
+
+  function submit() {
+    const v = value.trim()
+    if (!v) return
+    onAdd(v)
+    setValue('')
+  }
+
+  return (
+    <div>
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      {tags.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {tags.map((t) => (
+            <span
+              key={t}
+              className="inline-flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground"
+            >
+              {t}
+              <button
+                type="button"
+                onClick={() => onRemove(t)}
+                aria-label={`Quitar ${t}`}
+                className="rounded-full p-0.5 hover:bg-foreground/10"
+              >
+                <X className="size-3" aria-hidden />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="mt-2 flex items-center gap-1.5">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), submit())}
+          placeholder={placeholder}
+          className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+        />
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!value.trim()}
+          className="flex shrink-0 items-center justify-center gap-1 rounded-xl bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground transition hover:bg-muted disabled:opacity-40"
+        >
+          <Plus className="size-3.5" aria-hidden />
+          Agregar
+        </button>
       </div>
     </div>
   )
