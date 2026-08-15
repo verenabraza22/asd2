@@ -12,12 +12,11 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SectionId } from '@/lib/nav'
 import {
-  booksByMonth,
   currentlyReading,
   finishedInYear,
 } from '@/lib/selectors'
 import { useStore } from '@/lib/store'
-import { MONTHS_ES, type BookType } from '@/lib/types'
+import { type BookType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { type Achievement, AchievementModal } from '../achievement-modal'
 import { BookCover } from '../book-cover'
@@ -43,21 +42,12 @@ export function DashboardSection({
   const booksRead = finished.length
   const reading = useMemo(() => currentlyReading(data.books), [data.books])
 
-  // Books finished during the current calendar month (only meaningful when
-  // the active year is the real current year).
-  const monthIndex = new Date().getMonth()
-  const isCurrentYear = year === new Date().getFullYear()
-  const monthlyRead = useMemo(() => {
-    if (!isCurrentYear) return 0
-    return (booksByMonth(data.books, year)[monthIndex] ?? []).length
-  }, [data.books, year, monthIndex, isCurrentYear])
-
   const annualPct = Math.min(
     100,
     Math.round((booksRead / Math.max(1, goal.annual)) * 100),
   )
 
-  // Detect newly-met goals that haven't been celebrated yet.
+  // Detect a newly-met annual goal that hasn't been celebrated yet.
   useEffect(() => {
     if (achievement) return
 
@@ -73,35 +63,8 @@ export function DashboardSection({
         goal: goal.annual,
         periodLabel: String(year),
       })
-      return
     }
-
-    const monthlyKey = `monthly-${year}-${monthIndex}`
-    if (
-      isCurrentYear &&
-      goal.monthly &&
-      goal.monthly > 0 &&
-      monthlyRead >= goal.monthly &&
-      data.achievements[monthlyKey] !== goal.monthly
-    ) {
-      setAchievement({
-        key: monthlyKey,
-        scope: 'monthly',
-        goal: goal.monthly,
-        periodLabel: MONTHS_ES[monthIndex],
-      })
-    }
-  }, [
-    achievement,
-    booksRead,
-    monthlyRead,
-    goal.annual,
-    goal.monthly,
-    year,
-    monthIndex,
-    isCurrentYear,
-    data.achievements,
-  ])
+  }, [achievement, booksRead, goal.annual, year, data.achievements])
 
   function handleKeep() {
     if (achievement) markGoalCelebrated(achievement.key, achievement.goal)
@@ -113,8 +76,7 @@ export function DashboardSection({
     // Mark the current milestone as celebrated so it won't re-trigger, then
     // raise the goal. The higher goal can trigger a fresh celebration later.
     markGoalCelebrated(achievement.key, achievement.goal)
-    if (achievement.scope === 'annual') setGoal(year, { annual: newGoal })
-    else setGoal(year, { monthly: newGoal })
+    setGoal(year, { annual: newGoal })
     setAchievement(null)
   }
 
@@ -135,21 +97,15 @@ export function DashboardSection({
         <StatCard icon={Target} label="Meta anual" value={`${goal.annual}`} />
       </div>
 
-      {/* Goals */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <GoalCard
-          title="Objetivo anual"
-          unit="libros"
-          value={goal.annual}
-          current={booksRead}
-          pct={annualPct}
-          onSave={(v) => setGoal(year, { annual: v })}
-        />
-        <MonthlyGoalCard
-          value={goal.monthly}
-          onSave={(v) => setGoal(year, { monthly: v })}
-        />
-      </div>
+      {/* Goal */}
+      <GoalCard
+        title="Objetivo anual"
+        unit="libros"
+        value={goal.annual}
+        current={booksRead}
+        pct={annualPct}
+        onSave={(v) => setGoal(year, { annual: v })}
+      />
 
       {/* Currently reading */}
       <div className="rounded-2xl border border-border bg-card p-5">
@@ -383,7 +339,9 @@ function GoalCard({
           {pct}%
         </p>
       </div>
-      <div className="mt-3 h-3 overflow-hidden rounded-full bg-muted">
+      <div
+        className="mt-3 h-3 overflow-hidden rounded-full bg-muted"
+      >
         <div
           className="h-full rounded-full bg-primary transition-all duration-500"
           style={{ width: `${pct}%` }}
@@ -393,74 +351,3 @@ function GoalCard({
   )
 }
 
-function MonthlyGoalCard({
-  value,
-  onSave,
-}: {
-  value?: number
-  onSave: (v: number) => void
-}) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(String(value ?? 2))
-
-  function save() {
-    const n = Math.max(0, Math.round(Number(draft) || 0))
-    onSave(n)
-    setEditing(false)
-  }
-
-  return (
-    <div className="rounded-2xl border border-border bg-card p-5">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="font-serif text-lg font-semibold">Objetivo mensual</h3>
-        <button
-          type="button"
-          onClick={() => {
-            setDraft(String(value ?? 2))
-            setEditing((e) => !e)
-          }}
-          className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <Pencil className="size-3.5" />
-          {value ? 'Editar' : 'Definir'}
-        </button>
-      </div>
-      {editing ? (
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            min={0}
-            value={draft}
-            autoFocus
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && save()}
-            className="w-24 rounded-lg border border-input bg-background px-2 py-1.5 text-sm tabular-nums outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
-          />
-          <span className="text-sm text-muted-foreground">libros / mes</span>
-          <button
-            type="button"
-            onClick={save}
-            className={cn(
-              'ml-auto flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground',
-            )}
-            aria-label="Guardar meta mensual"
-          >
-            <Check className="size-4" />
-          </button>
-        </div>
-      ) : value ? (
-        <p className="text-sm text-muted-foreground">
-          Tu meta es leer{' '}
-          <span className="font-serif text-2xl font-bold text-foreground tabular-nums">
-            {value}
-          </span>{' '}
-          libro{value === 1 ? '' : 's'} cada mes.
-        </p>
-      ) : (
-        <p className="py-2 text-sm text-muted-foreground">
-          Opcional. Define una meta mensual para mantener un ritmo constante.
-        </p>
-      )}
-    </div>
-  )
-}
