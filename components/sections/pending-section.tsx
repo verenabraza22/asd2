@@ -8,14 +8,12 @@ import type { WishlistItem } from "@/lib/types"
 import { BookCover } from "@/components/book-cover"
 import { BookForm } from "@/components/book-form"
 import { BookSearch } from "@/components/book-search"
-import { CoverScanner } from "@/components/cover-scanner"
 import { Modal } from "@/components/modal"
 import { SectionHeader } from "./section-header"
 
 export function PendingSection() {
   const { data, addWishlist, updateWishlist, deleteWishlist } = useStore()
   const [addOpen, setAddOpen] = useState(false)
-  const [scanText, setScanText] = useState<string | null>(null)
   const [migrating, setMigrating] = useState<WishlistItem | null>(null)
 
   const items = useMemo(
@@ -46,7 +44,7 @@ export function PendingSection() {
           <BookMarked className="mx-auto size-8 text-muted-foreground" aria-hidden />
           <p className="mt-3 font-serif text-lg text-foreground">Tu lista de deseos está vacía</p>
           <p className="mt-1 text-sm text-muted-foreground text-pretty">
-            Agregá libros que querés leer. Podés escanear la portada con la cámara.
+            Agregá libros que querés leer buscándolos por título o autor.
           </p>
         </div>
       ) : (
@@ -115,12 +113,10 @@ export function PendingSection() {
           <h3 id="pending-add-title" className="font-serif text-xl font-bold">
             Agregar a pendientes
           </h3>
-          <CoverScanner onDetected={setScanText} />
           <div>
             <p className="mb-1.5 text-sm font-medium text-foreground">Buscar libro</p>
             <BookSearch
-              key={scanText ?? "empty"}
-              placeholder={scanText ? `Buscando: ${scanText}` : "Buscar por título o autor…"}
+              placeholder="Buscar por título o autor…"
               onSelect={(meta: BookMetadata) => {
                 addWishlist({
                   type: "book",
@@ -132,21 +128,13 @@ export function PendingSection() {
                   synopsis: meta.synopsis,
                   checked: false,
                 })
-                setScanText(null)
                 setAddOpen(false)
               }}
             />
-            {scanText && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Texto detectado en la portada: <span className="font-medium text-foreground">{scanText}</span>. Buscalo
-                arriba y seleccionalo.
-              </p>
-            )}
           </div>
           <ManualWishlistForm
             onSubmit={(payload) => {
               addWishlist(payload)
-              setScanText(null)
               setAddOpen(false)
             }}
           />
@@ -233,4 +221,3 @@ function ManualWishlistForm({
     </form>
   )
 }
-
