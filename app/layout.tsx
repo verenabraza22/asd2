@@ -26,6 +26,14 @@ export const metadata: Metadata = {
   description:
     'Registra, planifica y analiza tus hábitos de lectura en un rincón cálido y acogedor. Estantería virtual, estadísticas, calendario de lectura y más.',
   generator: 'v0.app',
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/icon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: [{ url: '/apple-icon.png', sizes: '180x180', type: 'image/png' }],
+  },
 }
 
 export const viewport: Viewport = {
