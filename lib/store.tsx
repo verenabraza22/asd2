@@ -29,6 +29,8 @@ function createDefaultData(): AppData {
     favorites: {},
     habits: {},
     achievements: {},
+    recommendPrefs: { extraGenres: [], extraAuthors: [] },
+    dismissedSuggestions: [],
   }
 }
 
@@ -91,6 +93,9 @@ interface StoreContextValue {
   setFavorite: (year: number, month: number, bookId: string | null) => void
   toggleHabit: (dateKey: string) => void
   markGoalCelebrated: (key: string, value: number) => void
+  addRecommendPref: (kind: 'genre' | 'author', value: string) => void
+  removeRecommendPref: (kind: 'genre' | 'author', value: string) => void
+  dismissSuggestion: (key: string) => void
   importData: (raw: AppData) => void
   exportData: () => AppData
 }
@@ -235,6 +240,43 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }))
   }, [])
 
+  const addRecommendPref = useCallback(
+    (kind: 'genre' | 'author', value: string) => {
+      const v = value.trim()
+      if (!v) return
+      setData((d) => {
+        const prefs = d.recommendPrefs ?? { extraGenres: [], extraAuthors: [] }
+        const key = kind === 'genre' ? 'extraGenres' : 'extraAuthors'
+        if (prefs[key].some((x) => x.toLowerCase() === v.toLowerCase()))
+          return d
+        return { ...d, recommendPrefs: { ...prefs, [key]: [...prefs[key], v] } }
+      })
+    },
+    [],
+  )
+
+  const removeRecommendPref = useCallback(
+    (kind: 'genre' | 'author', value: string) => {
+      setData((d) => {
+        const prefs = d.recommendPrefs ?? { extraGenres: [], extraAuthors: [] }
+        const key = kind === 'genre' ? 'extraGenres' : 'extraAuthors'
+        return {
+          ...d,
+          recommendPrefs: { ...prefs, [key]: prefs[key].filter((x) => x !== value) },
+        }
+      })
+    },
+    [],
+  )
+
+  const dismissSuggestion = useCallback((key: string) => {
+    setData((d) => {
+      const list = d.dismissedSuggestions ?? []
+      if (list.includes(key)) return d
+      return { ...d, dismissedSuggestions: [...list, key] }
+    })
+  }, [])
+
   const importData = useCallback((raw: AppData) => {
     setData({ ...createDefaultData(), ...raw })
   }, [])
@@ -265,6 +307,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setFavorite,
     toggleHabit,
     markGoalCelebrated,
+    addRecommendPref,
+    removeRecommendPref,
+    dismissSuggestion,
     importData,
     exportData,
   }
