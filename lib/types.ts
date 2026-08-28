@@ -88,6 +88,13 @@ export interface AppData {
    * goal number that was met when celebrated.
    */
   achievements: Record<string, number>
+  /** Extra genres/authors the user added manually to shape recommendations. */
+  recommendPrefs?: {
+    extraGenres: string[]
+    extraAuthors: string[]
+  }
+  /** Suggestion keys (`title|author`, normalized) dismissed via "Ya lo leí". */
+  dismissedSuggestions?: string[]
 }
 
 export const MONTHS_ES = [
