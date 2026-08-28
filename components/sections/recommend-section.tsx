@@ -15,6 +15,7 @@ import { BookCover } from '../book-cover'
 import {
   getRecommendations,
   readerProfile,
+  suggestionKey,
   type Suggestion,
 } from '@/lib/recommend'
 import { useStore } from '@/lib/store'
@@ -25,12 +26,17 @@ type Phase = 'idle' | 'loading' | 'done' | 'error'
 const VISIBLE_COUNT = 8
 
 function keyOf(s: Suggestion) {
-  return `${s.title}|${s.author}`
+  return suggestionKey(s.title, s.author)
 }
 
 export function RecommendSection() {
-  const { data, addWishlist, addRecommendPref, removeRecommendPref } =
-    useStore()
+  const {
+    data,
+    addWishlist,
+    addRecommendPref,
+    removeRecommendPref,
+    dismissSuggestion,
+  } = useStore()
   const [phase, setPhase] = useState<Phase>('idle')
   const [pool, setPool] = useState<Suggestion[]>([])
   const [shownKeys, setShownKeys] = useState<string[]>([])
@@ -61,7 +67,13 @@ export function RecommendSection() {
     setAdded(new Set())
     setMarkedRead(new Set())
     try {
-      const results = await getRecommendations(profile, data.books, data.wishlist)
+      const results = await getRecommendations({
+        genres: profile.topGenres,
+        authorsToSearch: profile.topAuthors,
+        library: data.books,
+        wishlist: data.wishlist,
+        dismissed: data.dismissedSuggestions ?? [],
+      })
       setPool(results)
       setShownKeys(results.slice(0, VISIBLE_COUNT).map(keyOf))
       setPhase(results.length ? 'done' : 'error')
@@ -95,6 +107,7 @@ export function RecommendSection() {
 
   function markAsRead(s: Suggestion) {
     const key = keyOf(s)
+    dismissSuggestion(key)
     setMarkedRead((prev) => new Set(prev).add(key))
     replaceWithNext(key)
   }
