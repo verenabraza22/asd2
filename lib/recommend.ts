@@ -31,7 +31,7 @@ export function readerProfile(books: Book[]): ReaderProfile {
   }
 }
 
-function norm(s: string) {
+export function norm(s: string) {
   return s
     .toLowerCase()
     .normalize('NFD')
@@ -40,37 +40,63 @@ function norm(s: string) {
     .trim()
 }
 
+/** Normalized `title|author` key, stable across accents/casing. */
+export function suggestionKey(title: string, author: string) {
+  return `${norm(title)}|${norm(author)}`
+}
+
 export interface Suggestion extends BookMetadata {
   /** why this was suggested, e.g. "Porque te gustó Fantasía" */
   reason: string
 }
 
+export interface RecommendOptions {
+  /** Genres to search by (own + manually added). Drives most suggestions. */
+  genres: string[]
+  /** Authors to actively search for more of (own top authors + manually added). */
+  authorsToSearch: string[]
+  library: Book[]
+  wishlist: WishlistItem[]
+  /** Normalized keys the reader dismissed with "Ya lo leí". */
+  dismissed: string[]
+}
+
 /**
- * Build reading suggestions from the reader profile, excluding books the
- * user already owns (library) or has on their wishlist.
+ * Build reading suggestions, weighted towards genre (which surfaces books
+ * from other authors with a similar feel) while still allowing more books
+ * from authors the reader already loves. Excludes anything already owned,
+ * wishlisted, or dismissed.
  */
 export async function getRecommendations(
-  profile: ReaderProfile,
-  library: Book[],
-  wishlist: WishlistItem[],
+  opts: RecommendOptions,
 ): Promise<Suggestion[]> {
+  const { genres, authorsToSearch, library, wishlist, dismissed } = opts
+
   const queries: { q: string; reason: string }[] = []
-  for (const author of profile.topAuthors) {
-    queries.push({ q: author, reason: `Más de ${author}` })
-  }
-  for (const genre of profile.topGenres) {
+  for (const genre of genres) {
+    queries.push({ q: `subject:"${genre}"`, reason: `Porque te gustó ${genre}` })
     queries.push({ q: genre, reason: `Porque te gustó ${genre}` })
+  }
+  if (genres.length >= 2) {
+    queries.push({
+      q: `${genres[0]} ${genres[1]}`,
+      reason: `Mezcla de tus géneros favoritos`,
+    })
+  }
+  for (const author of authorsToSearch) {
+    queries.push({ q: author, reason: `Más de ${author}` })
   }
   if (queries.length === 0) return []
 
   const owned = new Set(
-    [...library, ...wishlist].map((b) => `${norm(b.title)}|${norm(b.author)}`),
+    [...library, ...wishlist].map((b) => suggestionKey(b.title, b.author)),
   )
   const ownedTitles = new Set([...library, ...wishlist].map((b) => norm(b.title)))
+  const dismissedSet = new Set(dismissed)
 
   const settled = await Promise.all(
     queries.map(async ({ q, reason }) => {
-      const res = await searchBooks(q, 6)
+      const res = await searchBooks(q, 8)
       return res.results.map((r) => ({ ...r, reason }) as Suggestion)
     }),
   )
@@ -79,14 +105,14 @@ export async function getRecommendations(
   const out: Suggestion[] = []
   for (const group of settled) {
     for (const s of group) {
-      const key = `${norm(s.title)}|${norm(s.author)}`
+      const key = suggestionKey(s.title, s.author)
       if (owned.has(key) || ownedTitles.has(norm(s.title))) continue
+      if (dismissedSet.has(key)) continue
       if (seen.has(key)) continue
       seen.add(key)
       out.push(s)
     }
   }
 
-  // Interleave so the list isn't dominated by a single author/genre.
-  return out.slice(0, 12)
+  return out.slice(0, 24)
 }
