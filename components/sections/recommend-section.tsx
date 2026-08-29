@@ -42,6 +42,7 @@ export function RecommendSection() {
   const [shownKeys, setShownKeys] = useState<string[]>([])
   const [added, setAdded] = useState<Set<string>>(new Set())
   const [markedRead, setMarkedRead] = useState<Set<string>>(new Set())
+  const [attempt, setAttempt] = useState(0)
 
   const baseProfile = useMemo(() => readerProfile(data.books), [data.books])
   const extraGenres = data.recommendPrefs?.extraGenres ?? []
@@ -66,6 +67,7 @@ export function RecommendSection() {
     setPhase('loading')
     setAdded(new Set())
     setMarkedRead(new Set())
+    const currentAttempt = attempt
     try {
       const results = await getRecommendations({
         genres: profile.topGenres,
@@ -73,10 +75,12 @@ export function RecommendSection() {
         library: data.books,
         wishlist: data.wishlist,
         dismissed: data.dismissedSuggestions ?? [],
+        attempt: currentAttempt,
       })
       setPool(results)
       setShownKeys(results.slice(0, VISIBLE_COUNT).map(keyOf))
       setPhase(results.length ? 'done' : 'error')
+      setAttempt(currentAttempt + 1)
     } catch {
       setPhase('error')
     }
