@@ -23,7 +23,7 @@ import { SectionHeader } from './section-header'
 
 type Phase = 'idle' | 'loading' | 'done' | 'error'
 
-const VISIBLE_COUNT = 8
+const VISIBLE_COUNT = 12
 
 function keyOf(s: Suggestion) {
   return suggestionKey(s.title, s.author)
@@ -97,7 +97,9 @@ export function RecommendSection() {
       synopsis: s.synopsis,
       checked: false,
     })
-    setAdded((prev) => new Set(prev).add(keyOf(s)))
+    const key = keyOf(s)
+    setAdded((prev) => new Set(prev).add(key))
+    replaceWithNext(key)
   }
 
   function replaceWithNext(removedKey: string) {
@@ -284,6 +286,20 @@ export function RecommendSection() {
             <div className="rounded-2xl bg-card/70 p-6 text-center text-sm text-muted-foreground shadow-sm">
               Ya viste todas las sugerencias de esta tanda. Tocá "Buscar de
               nuevo" para descubrir más.
+            </div>
+          )}
+
+          {phase === 'done' && shown.length > 0 && (
+            <div className="flex justify-center pt-1">
+              <button
+                type="button"
+                onClick={loadRecommendations}
+                disabled={phase !== 'done'}
+                className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90"
+              >
+                <Sparkles className="size-4" aria-hidden />
+                Buscar de nuevo
+              </button>
             </div>
           )}
         </>
