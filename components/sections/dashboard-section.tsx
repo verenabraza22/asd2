@@ -4,6 +4,7 @@ import {
   BookOpen,
   Check,
   ChevronDown,
+  Clock,
   Headphones,
   Pencil,
   Plus,
@@ -93,7 +94,7 @@ export function DashboardSection({
       {/* Counters */}
       <div className="grid grid-cols-3 gap-3">
         <StatCard icon={BookOpen} label="Libros leídos" value={booksRead} />
-        <StatCard icon={Headphones} label="En curso" value={reading.length} />
+        <StatCard icon={Clock} label="En curso" value={reading.length} />
         <StatCard icon={Target} label="Meta anual" value={`${goal.annual}`} />
       </div>
 
@@ -350,4 +351,3 @@ function GoalCard({
     </div>
   )
 }
-
