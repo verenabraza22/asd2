@@ -59,6 +59,12 @@ export interface RecommendOptions {
   wishlist: WishlistItem[]
   /** Normalized keys the reader dismissed with "Ya lo leí". */
   dismissed: string[]
+  /**
+   * How many times the reader has searched this session (0 = first search).
+   * Each subsequent attempt asks the book APIs for a further-along page of
+   * results, so "Buscar de nuevo" doesn't just repeat the same suggestions.
+   */
+  attempt?: number
 }
 
 /**
@@ -70,7 +76,10 @@ export interface RecommendOptions {
 export async function getRecommendations(
   opts: RecommendOptions,
 ): Promise<Suggestion[]> {
-  const { genres, authorsToSearch, library, wishlist, dismissed } = opts
+  const { genres, authorsToSearch, library, wishlist, dismissed, attempt = 0 } =
+    opts
+  const perQuery = 8
+  const startIndex = attempt * perQuery
 
   const queries: { q: string; reason: string }[] = []
   for (const genre of genres) {
@@ -96,7 +105,7 @@ export async function getRecommendations(
 
   const settled = await Promise.all(
     queries.map(async ({ q, reason }) => {
-      const res = await searchBooks(q, 8)
+      const res = await searchBooks(q, perQuery, startIndex)
       return res.results.map((r) => ({ ...r, reason }) as Suggestion)
     }),
   )
@@ -112,6 +121,13 @@ export async function getRecommendations(
       seen.add(key)
       out.push(s)
     }
+  }
+
+  // A far-along page can occasionally come back thin (some queries simply
+  // run out of results). Fall back to the first page rather than showing
+  // the reader an empty state.
+  if (out.length === 0 && startIndex > 0) {
+    return getRecommendations({ ...opts, attempt: 0 })
   }
 
   return out.slice(0, 24)
