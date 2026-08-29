@@ -83,7 +83,7 @@ export async function getRecommendations(
 
   const queries: { q: string; reason: string }[] = []
   for (const genre of genres) {
-    queries.push({ q: `subject:"${genre}"`, reason: `Porque te gustó ${genre}` })
+    queries.push({ q: `subject:${genre}`, reason: `Porque te gustó ${genre}` })
     queries.push({ q: genre, reason: `Porque te gustó ${genre}` })
   }
   if (genres.length >= 2) {
@@ -110,10 +110,19 @@ export async function getRecommendations(
     }),
   )
 
+  // Interleave round-robin across query groups (one per genre/author) so a
+  // single genre with lots of matches doesn't crowd out the others — take
+  // one suggestion from each group in turn, cycling until all are used.
   const seen = new Set<string>()
   const out: Suggestion[] = []
-  for (const group of settled) {
-    for (const s of group) {
+  let round = 0
+  let addedInRound = true
+  while (addedInRound) {
+    addedInRound = false
+    for (const group of settled) {
+      const s = group[round]
+      if (!s) continue
+      addedInRound = true
       const key = suggestionKey(s.title, s.author)
       if (owned.has(key) || ownedTitles.has(norm(s.title))) continue
       if (dismissedSet.has(key)) continue
@@ -121,6 +130,7 @@ export async function getRecommendations(
       seen.add(key)
       out.push(s)
     }
+    round++
   }
 
   // A far-along page can occasionally come back thin (some queries simply
@@ -130,5 +140,5 @@ export async function getRecommendations(
     return getRecommendations({ ...opts, attempt: 0 })
   }
 
-  return out.slice(0, 24)
+  return out.slice(0, 32)
 }
