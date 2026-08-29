@@ -83,30 +83,34 @@ async function searchOpenLibrary(
   const page = Math.floor(startIndex / Math.max(1, max)) + 1
   const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(
     query.trim(),
-  )}&limit=${max}&page=${page}&fields=title,author_name,cover_i,number_of_pages_median,first_sentence,subject`
+  )}&limit=${max}&page=${page}&lang=spa&language=spa&sort=new&fields=title,author_name,cover_i,number_of_pages_median,first_sentence,subject,language`
   const res = await fetch(url)
   if (!res.ok) return { status: 'error', results: [] }
   const json = await res.json()
   const docs = (json.docs ?? []) as any[]
-  const results = docs.map((d) => {
-    const cover =
-      typeof d.cover_i === 'number'
-        ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg`
-        : undefined
-    return {
-      title: d.title ?? 'Sin título',
-      author: (d.author_name ?? []).join(', ') || 'Autor desconocido',
-      coverUrl: cover,
-      pages:
-        typeof d.number_of_pages_median === 'number'
-          ? d.number_of_pages_median
-          : undefined,
-      genre: mapGenre(d.subject),
-      synopsis: Array.isArray(d.first_sentence)
-        ? d.first_sentence[0]
-        : d.first_sentence,
-    } as BookMetadata
-  })
+  const results = docs
+    // Belt-and-suspenders: some entries have multiple editions in mixed
+    // languages, so also check the language field directly when present.
+    .filter((d) => !Array.isArray(d.language) || d.language.includes('spa'))
+    .map((d) => {
+      const cover =
+        typeof d.cover_i === 'number'
+          ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg`
+          : undefined
+      return {
+        title: d.title ?? 'Sin título',
+        author: (d.author_name ?? []).join(', ') || 'Autor desconocido',
+        coverUrl: cover,
+        pages:
+          typeof d.number_of_pages_median === 'number'
+            ? d.number_of_pages_median
+            : undefined,
+        genre: mapGenre(d.subject),
+        synopsis: Array.isArray(d.first_sentence)
+          ? d.first_sentence[0]
+          : d.first_sentence,
+      } as BookMetadata
+    })
   return { status: results.length ? 'ok' : 'empty', results }
 }
 
