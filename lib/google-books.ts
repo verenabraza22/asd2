@@ -49,10 +49,11 @@ export interface SearchResult {
 async function searchGoogleBooks(
   query: string,
   max: number,
+  startIndex = 0,
 ): Promise<SearchResult> {
   const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
     query.trim(),
-  )}&maxResults=${max}&langRestrict=es&printType=books`
+  )}&maxResults=${max}&startIndex=${startIndex}&langRestrict=es&printType=books`
   const res = await fetch(url)
   if (!res.ok) {
     // 429 (rate limit) / other non-OK responses are transient failures.
@@ -77,10 +78,12 @@ async function searchGoogleBooks(
 async function searchOpenLibrary(
   query: string,
   max: number,
+  startIndex = 0,
 ): Promise<SearchResult> {
+  const page = Math.floor(startIndex / Math.max(1, max)) + 1
   const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(
     query.trim(),
-  )}&limit=${max}&fields=title,author_name,cover_i,number_of_pages_median,first_sentence,subject`
+  )}&limit=${max}&page=${page}&fields=title,author_name,cover_i,number_of_pages_median,first_sentence,subject`
   const res = await fetch(url)
   if (!res.ok) return { status: 'error', results: [] }
   const json = await res.json()
@@ -114,12 +117,13 @@ async function searchOpenLibrary(
 export async function searchBooks(
   query: string,
   max = 6,
+  startIndex = 0,
 ): Promise<SearchResult> {
   if (!query.trim()) return { status: 'empty', results: [] }
 
   let primary: SearchResult
   try {
-    primary = await searchGoogleBooks(query, max)
+    primary = await searchGoogleBooks(query, max, startIndex)
   } catch {
     primary = { status: 'error', results: [] }
   }
@@ -127,7 +131,7 @@ export async function searchBooks(
 
   // Google failed or returned no results — try Open Library.
   try {
-    const secondary = await searchOpenLibrary(query, max)
+    const secondary = await searchOpenLibrary(query, max, startIndex)
     if (secondary.status === 'ok') return secondary
     // Prefer a definitive "empty" over an "error" when either says empty.
     if (secondary.status === 'empty' || primary.status === 'empty') {
