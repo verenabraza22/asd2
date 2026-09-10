@@ -50,6 +50,11 @@ export interface Suggestion extends BookMetadata {
   reason: string
 }
 
+/** A book counts as "known" when enough people have rated it on the source. */
+export function isPopularSuggestion(s: Suggestion): boolean {
+  return (s.ratingsCount ?? 0) >= 5 || (s.averageRating ?? 0) >= 4
+}
+
 export interface RecommendOptions {
   /** Genres to search by (own + manually added). Drives most suggestions. */
   genres: string[]
@@ -140,5 +145,11 @@ export async function getRecommendations(
     return getRecommendations({ ...opts, attempt: 0 })
   }
 
-  return out.slice(0, 32)
+  // Popular books first, obscure/unrated ones held for last — without
+  // breaking the genre interleaving already established above (a stable
+  // sort keeps each tier's relative order exactly as it was).
+  const popular = out.filter(isPopularSuggestion)
+  const rest = out.filter((s) => !isPopularSuggestion(s))
+
+  return [...popular, ...rest].slice(0, 32)
 }
