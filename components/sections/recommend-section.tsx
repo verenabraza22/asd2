@@ -14,6 +14,7 @@ import { useMemo, useState } from 'react'
 import { BookCover } from '../book-cover'
 import {
   getRecommendations,
+  isPopularSuggestion,
   readerProfile,
   suggestionKey,
   type Suggestion,
@@ -38,8 +39,10 @@ export function RecommendSection() {
     dismissSuggestion,
   } = useStore()
   const [phase, setPhase] = useState<Phase>('idle')
-  const [pool, setPool] = useState<Suggestion[]>([])
-  const [shownKeys, setShownKeys] = useState<string[]>([])
+  const [popularPool, setPopularPool] = useState<Suggestion[]>([])
+  const [obscurePool, setObscurePool] = useState<Suggestion[]>([])
+  const [shown, setShown] = useState<Suggestion[]>([])
+  const [seenKeys, setSeenKeys] = useState<Set<string>>(new Set())
   const [added, setAdded] = useState<Set<string>>(new Set())
   const [markedRead, setMarkedRead] = useState<Set<string>>(new Set())
   const [attempt, setAttempt] = useState(0)
@@ -59,10 +62,6 @@ export function RecommendSection() {
   const hasEnough =
     baseProfile.sampleSize > 0 || extraGenres.length > 0 || extraAuthors.length > 0
 
-  const shown = shownKeys
-    .map((k) => pool.find((s) => keyOf(s) === k))
-    .filter((s): s is Suggestion => Boolean(s))
-
   async function loadRecommendations() {
     setPhase('loading')
     setAdded(new Set())
@@ -77,9 +76,36 @@ export function RecommendSection() {
         dismissed: data.dismissedSuggestions ?? [],
         attempt: currentAttempt,
       })
-      setPool(results)
-      setShownKeys(results.slice(0, VISIBLE_COUNT).map(keyOf))
-      setPhase(results.length ? 'done' : 'error')
+
+      // Merge the freshly fetched batch into the running reserves, skipping
+      // anything already seen in a previous search this session. This is
+      // what lets popular books discovered on attempt 2, 3, 4... still take
+      // priority over obscure ones left over from attempt 1 — the obscure
+      // reserve is only ever drawn from once the popular one is dry.
+      const nextSeen = new Set(seenKeys)
+      const newPopular: Suggestion[] = []
+      const newObscure: Suggestion[] = []
+      for (const s of results) {
+        const key = keyOf(s)
+        if (nextSeen.has(key)) continue
+        nextSeen.add(key)
+        if (isPopularSuggestion(s)) newPopular.push(s)
+        else newObscure.push(s)
+      }
+
+      const popular = [...popularPool, ...newPopular]
+      const obscure = [...obscurePool, ...newObscure]
+
+      const fromPopular = popular.slice(0, VISIBLE_COUNT)
+      const stillNeeded = VISIBLE_COUNT - fromPopular.length
+      const fromObscure = stillNeeded > 0 ? obscure.slice(0, stillNeeded) : []
+      const nextShown = [...fromPopular, ...fromObscure]
+
+      setSeenKeys(nextSeen)
+      setPopularPool(popular.slice(fromPopular.length))
+      setObscurePool(obscure.slice(fromObscure.length))
+      setShown(nextShown)
+      setPhase(nextShown.length > 0 ? 'done' : 'error')
       setAttempt(currentAttempt + 1)
     } catch {
       setPhase('error')
@@ -102,13 +128,23 @@ export function RecommendSection() {
     replaceWithNext(key)
   }
 
+  /** Remove a shown card and pull its replacement from the popular reserve
+   * first, only reaching into the obscure one once popular runs dry. */
   function replaceWithNext(removedKey: string) {
-    setShownKeys((prev) => {
-      const without = prev.filter((k) => k !== removedKey)
-      const used = new Set([...without, removedKey])
-      const next = pool.find((s) => !used.has(keyOf(s)))
-      return next ? [...without, keyOf(next)] : without
-    })
+    const without = shown.filter((s) => keyOf(s) !== removedKey)
+    if (popularPool.length > 0) {
+      const [next, ...rest] = popularPool
+      setPopularPool(rest)
+      setShown([...without, next])
+      return
+    }
+    if (obscurePool.length > 0) {
+      const [next, ...rest] = obscurePool
+      setObscurePool(rest)
+      setShown([...without, next])
+      return
+    }
+    setShown(without)
   }
 
   function markAsRead(s: Suggestion) {
