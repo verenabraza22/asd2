@@ -5,27 +5,54 @@ export interface BookMetadata {
   pages?: number
   genre?: string
   synopsis?: string
+  /** 1–5 average rating, when the source reports one. */
+  averageRating?: number
+  /** How many people rated it — the main signal of how well-known it is. */
+  ratingsCount?: number
 }
 
-const GENRE_MAP: Record<string, string> = {
-  fiction: 'Ficción',
-  fantasy: 'Fantasía',
-  romance: 'Romance',
-  history: 'Historia',
-  'self-help': 'Desarrollo Personal',
-  'science fiction': 'Ciencia Ficción',
-  juvenile: 'Ficción',
-  biography: 'Biografía',
-  poetry: 'Poesía',
-  mystery: 'Misterio',
-  horror: 'Terror',
-}
+// Order matters: Google/Open Library often label things like
+// "Fiction / Thrillers" or "Juvenile Fiction / Fantasy" — if we checked
+// the generic "fiction" first it would win every time and mask the more
+// specific genre. So specific genres are listed first, and "fiction" is
+// the last, catch-all fallback.
+const GENRE_RULES: [string, string][] = [
+  ['thriller', 'Thriller'],
+  ['true crime', 'Policial'],
+  ['mystery', 'Misterio'],
+  ['detective', 'Policial'],
+  ['crime', 'Policial'],
+  ['dystopia', 'Distopía'],
+  ['science fiction', 'Ciencia Ficción'],
+  ['fantasy', 'Fantasía'],
+  ['horror', 'Terror'],
+  ['romance', 'Romance'],
+  ['adventure', 'Aventura'],
+  ['biography', 'Biografía'],
+  ['autobiography', 'Biografía'],
+  ['memoir', 'Biografía'],
+  ['poetry', 'Poesía'],
+  ['essay', 'Ensayo'],
+  ['history', 'Historia'],
+  ['self-help', 'Desarrollo Personal'],
+  ['self help', 'Desarrollo Personal'],
+  ['personal growth', 'Desarrollo Personal'],
+  ['comic', 'Cómic'],
+  ['graphic novel', 'Cómic'],
+  ['drama', 'Drama'],
+  ['young adult', 'Juvenil'],
+  ['juvenile fiction', 'Juvenil'],
+  ['juvenile', 'Infantil'],
+  ['children', 'Infantil'],
+  ['classic', 'Clásico'],
+  ['fiction', 'Ficción'],
+]
 
 function mapGenre(categories?: string[]): string | undefined {
   if (!categories || categories.length === 0) return undefined
   const raw = categories[0].toLowerCase()
-  for (const key of Object.keys(GENRE_MAP)) {
-    if (raw.includes(key)) return GENRE_MAP[key]
+  for (const [key, label] of GENRE_RULES) {
+    if (raw.includes(key)) return label
   }
   return categories[0]
 }
@@ -70,6 +97,10 @@ async function searchGoogleBooks(
       pages: typeof v.pageCount === 'number' ? v.pageCount : undefined,
       genre: mapGenre(v.categories),
       synopsis: v.description,
+      averageRating:
+        typeof v.averageRating === 'number' ? v.averageRating : undefined,
+      ratingsCount:
+        typeof v.ratingsCount === 'number' ? v.ratingsCount : undefined,
     } as BookMetadata
   })
   return { status: results.length ? 'ok' : 'empty', results }
@@ -83,7 +114,7 @@ async function searchOpenLibrary(
   const page = Math.floor(startIndex / Math.max(1, max)) + 1
   const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(
     query.trim(),
-  )}&limit=${max}&page=${page}&lang=spa&language=spa&sort=new&fields=title,author_name,cover_i,number_of_pages_median,first_sentence,subject,language`
+  )}&limit=${max}&page=${page}&lang=spa&language=spa&sort=new&fields=title,author_name,cover_i,number_of_pages_median,first_sentence,subject,language,ratings_average,ratings_count`
   const res = await fetch(url)
   if (!res.ok) return { status: 'error', results: [] }
   const json = await res.json()
@@ -109,6 +140,10 @@ async function searchOpenLibrary(
         synopsis: Array.isArray(d.first_sentence)
           ? d.first_sentence[0]
           : d.first_sentence,
+        averageRating:
+          typeof d.ratings_average === 'number' ? d.ratings_average : undefined,
+        ratingsCount:
+          typeof d.ratings_count === 'number' ? d.ratings_count : undefined,
       } as BookMetadata
     })
   return { status: results.length ? 'ok' : 'empty', results }
