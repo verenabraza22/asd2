@@ -1,7 +1,8 @@
 'use client'
 
-import { Plus } from 'lucide-react'
+import { Loader2, Plus, Sparkles } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { fetchSynopsis } from '@/lib/google-books'
 import { useStore } from '@/lib/store'
 import type { Book, BookType } from '@/lib/types'
 import { BookCover } from './book-cover'
@@ -26,11 +27,15 @@ interface LibraryListProps {
 }
 
 export function LibraryList({ type, title, subtitle }: LibraryListProps) {
-  const { data } = useStore()
+  const { data, updateBook } = useStore()
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Book | null>(null)
   const [detail, setDetail] = useState<Book | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
+  const [filling, setFilling] = useState(false)
+  const [fillProgress, setFillProgress] = useState<{ done: number; total: number } | null>(
+    null,
+  )
 
   const books = useMemo(
     () =>
@@ -39,6 +44,31 @@ export function LibraryList({ type, title, subtitle }: LibraryListProps) {
         .filter((b) => (filter === 'all' ? true : b.status === filter)),
     [data.books, type, filter],
   )
+
+  const missingSynopsis = useMemo(
+    () => data.books.filter((b) => b.type === type && !b.synopsis?.trim()),
+    [data.books, type],
+  )
+
+  async function fillMissingSynopses() {
+    if (filling || missingSynopsis.length === 0) return
+    setFilling(true)
+    setFillProgress({ done: 0, total: missingSynopsis.length })
+    for (let i = 0; i < missingSynopsis.length; i++) {
+      const book = missingSynopsis[i]
+      try {
+        const found = await fetchSynopsis(book.title, book.author)
+        if (found) updateBook(book.id, { synopsis: found })
+      } catch {
+        // skip this one and keep going with the rest
+      }
+      setFillProgress({ done: i + 1, total: missingSynopsis.length })
+      // A short pause between requests to stay polite with the free APIs.
+      await new Promise((r) => setTimeout(r, 300))
+    }
+    setFilling(false)
+    setTimeout(() => setFillProgress(null), 2500)
+  }
 
   function openEdit(book: Book) {
     setDetail(null)
@@ -67,7 +97,7 @@ export function LibraryList({ type, title, subtitle }: LibraryListProps) {
       />
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         {FILTERS.map((f) => (
           <button
             key={f.id}
@@ -83,7 +113,34 @@ export function LibraryList({ type, title, subtitle }: LibraryListProps) {
             {f.label}
           </button>
         ))}
+
+        {missingSynopsis.length > 0 && (
+          <button
+            type="button"
+            onClick={fillMissingSynopses}
+            disabled={filling}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-60"
+          >
+            {filling ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="size-3.5" />
+            )}
+            {filling && fillProgress
+              ? `Completando sinopsis… ${fillProgress.done}/${fillProgress.total}`
+              : `Completar ${missingSynopsis.length} sinopsis faltante${
+                  missingSynopsis.length === 1 ? '' : 's'
+                }`}
+          </button>
+        )}
       </div>
+
+      {!filling && fillProgress && (
+        <p className="text-xs text-muted-foreground">
+          Listo: se completaron las sinopsis que se pudieron encontrar en
+          español.
+        </p>
+      )}
 
       {books.length === 0 ? (
         <EmptyState type={type} onAdd={() => setFormOpen(true)} />
