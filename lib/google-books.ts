@@ -95,8 +95,34 @@ export async function fetchSynopsis(
   title: string,
   author?: string,
 ): Promise<string | undefined> {
+  // Attempt 1: precise field-scoped search. Multi-word values MUST be
+  // quoted for intitle:/inauthor: to match the whole phrase — without
+  // quotes, Google only binds the operator to the next single word and
+  // silently mis-parses everything else, which was returning nothing for
+  // almost every title.
   try {
-    const q = `intitle:${title}${author ? ` inauthor:${author}` : ''}`
+    const q = `intitle:"${title}"${author ? ` inauthor:"${author}"` : ''}`
+    const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+      q,
+    )}&maxResults=5&langRestrict=es&printType=books`
+    const res = await fetch(url)
+    if (res.ok) {
+      const json = await res.json()
+      const items = (json.items ?? []) as any[]
+      for (const item of items) {
+        const desc = item.volumeInfo?.description as string | undefined
+        if (looksSpanish(desc)) return desc
+      }
+    }
+  } catch {
+    // fall through to the plain-text attempt below
+  }
+
+  // Attempt 2: same plain free-text search style already used elsewhere
+  // in the app (proven to work reliably), as a safety net in case the
+  // field-scoped search above still finds nothing.
+  try {
+    const q = `${title} ${author ?? ''}`.trim()
     const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
       q,
     )}&maxResults=5&langRestrict=es&printType=books`
