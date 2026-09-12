@@ -68,6 +68,76 @@ function bestCover(imageLinks?: Record<string, string>): string | undefined {
   return url ? url.replace('http://', 'https://').replace('&edge=curl', '') : undefined
 }
 
+// Cheap heuristic to reject descriptions that came back in English (common
+// with Open Library and even some "Spanish" Google Books editions whose
+// metadata was never translated). Not perfect, but good enough to avoid
+// silently filling the synopsis field with the wrong language.
+const SPANISH_HINTS =
+  /\b(que|de|la|el|los|las|una|uno|para|con|por|su|sus|es|en|un|del|al|más|cuando|desde|hasta|entre|sin|sobre|pero|como|muy|esta|este|donde)\b/gi
+const ENGLISH_HINTS =
+  /\b(the|and|of|is|was|with|this|that|from|his|her|their|book|novel|story|when|where)\b/gi
+
+function looksSpanish(text: string | undefined): text is string {
+  if (!text || text.trim().length < 20) return false
+  const es = (text.match(SPANISH_HINTS) ?? []).length
+  const en = (text.match(ENGLISH_HINTS) ?? []).length
+  return es > en
+}
+
+/**
+ * A focused, best-effort lookup for a Spanish synopsis by title/author —
+ * used when a search result didn't already carry a good one. Tries a
+ * precise Google Books lookup first, then Open Library's full work record
+ * (which has a real description, unlike its search endpoint that only
+ * offers a first line).
+ */
+export async function fetchSynopsis(
+  title: string,
+  author?: string,
+): Promise<string | undefined> {
+  try {
+    const q = `intitle:${title}${author ? ` inauthor:${author}` : ''}`
+    const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+      q,
+    )}&maxResults=5&langRestrict=es&printType=books`
+    const res = await fetch(url)
+    if (res.ok) {
+      const json = await res.json()
+      const items = (json.items ?? []) as any[]
+      for (const item of items) {
+        const desc = item.volumeInfo?.description as string | undefined
+        if (looksSpanish(desc)) return desc
+      }
+    }
+  } catch {
+    // fall through to Open Library below
+  }
+
+  try {
+    const searchUrl = `https://openlibrary.org/search.json?q=${encodeURIComponent(
+      `${title} ${author ?? ''}`.trim(),
+    )}&limit=1&lang=spa&language=spa&fields=key`
+    const res = await fetch(searchUrl)
+    if (res.ok) {
+      const json = await res.json()
+      const key = json.docs?.[0]?.key
+      if (key) {
+        const workRes = await fetch(`https://openlibrary.org${key}.json`)
+        if (workRes.ok) {
+          const work = await workRes.json()
+          const raw = work.description
+          const desc = typeof raw === 'string' ? raw : raw?.value
+          if (looksSpanish(desc)) return desc
+        }
+      }
+    }
+  } catch {
+    // give up quietly — caller treats undefined as "couldn't find one"
+  }
+
+  return undefined
+}
+
 export interface SearchResult {
   status: 'ok' | 'empty' | 'error'
   results: BookMetadata[]
@@ -96,7 +166,7 @@ async function searchGoogleBooks(
       coverUrl: bestCover(v.imageLinks),
       pages: typeof v.pageCount === 'number' ? v.pageCount : undefined,
       genre: mapGenre(v.categories),
-      synopsis: v.description,
+      synopsis: looksSpanish(v.description) ? v.description : undefined,
       averageRating:
         typeof v.averageRating === 'number' ? v.averageRating : undefined,
       ratingsCount:
@@ -137,9 +207,13 @@ async function searchOpenLibrary(
             ? d.number_of_pages_median
             : undefined,
         genre: mapGenre(d.subject),
-        synopsis: Array.isArray(d.first_sentence)
-          ? d.first_sentence[0]
-          : d.first_sentence,
+        synopsis: looksSpanish(
+          Array.isArray(d.first_sentence) ? d.first_sentence[0] : d.first_sentence,
+        )
+          ? Array.isArray(d.first_sentence)
+            ? d.first_sentence[0]
+            : d.first_sentence
+          : undefined,
         averageRating:
           typeof d.ratings_average === 'number' ? d.ratings_average : undefined,
         ratingsCount:
