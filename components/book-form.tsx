@@ -2,7 +2,7 @@
 
 import { ImagePlus } from 'lucide-react'
 import { useRef, useState } from 'react'
-import type { BookMetadata } from '@/lib/google-books'
+import { fetchSynopsis, type BookMetadata } from '@/lib/google-books'
 import { useStore } from '@/lib/store'
 import {
   ABANDON_REASONS,
@@ -67,6 +67,7 @@ export function BookForm({
   )
   const [genre, setGenre] = useState(initial?.genre ?? '')
   const [synopsis, setSynopsis] = useState(initial?.synopsis ?? '')
+  const [findingSynopsis, setFindingSynopsis] = useState(false)
   const [startDate, setStartDate] = useState(initial?.startDate ?? '')
   const [endDate, setEndDate] = useState(initial?.endDate ?? '')
   const [status, setStatus] = useState<ReadingStatus>(
@@ -95,7 +96,19 @@ export function BookForm({
     if (meta.coverUrl) setCoverUrl(meta.coverUrl)
     if (meta.pages) setPages(String(meta.pages))
     if (meta.genre) setGenre(meta.genre)
-    if (meta.synopsis) setSynopsis(meta.synopsis)
+    if (meta.synopsis) {
+      setSynopsis(meta.synopsis)
+      return
+    }
+    // The chosen result didn't come with a synopsis — look a bit harder
+    // in the background rather than leaving the field empty.
+    setSynopsis('')
+    setFindingSynopsis(true)
+    fetchSynopsis(meta.title, meta.author)
+      .then((found) => {
+        if (found) setSynopsis(found)
+      })
+      .finally(() => setFindingSynopsis(false))
   }
 
   function handleSave() {
@@ -366,6 +379,11 @@ export function BookForm({
         <div className="mt-3 space-y-1">
           <label className={LABEL} htmlFor="bf-synopsis">
             Sinopsis
+            {findingSynopsis && (
+              <span className="ml-2 font-normal normal-case text-muted-foreground">
+                Buscando sinopsis…
+              </span>
+            )}
           </label>
           <textarea
             id="bf-synopsis"
