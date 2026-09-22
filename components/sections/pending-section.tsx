@@ -1,9 +1,9 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { BookMarked, Check, Pencil, Plus, Sparkles, Trash2 } from "lucide-react"
+import { BookMarked, BookOpen, Check, Pencil, Plus, Sparkles, Trash2 } from "lucide-react"
 import { useStore } from "@/lib/store"
-import type { BookMetadata } from "@/lib/google-books"
+import { fetchSynopsis, type BookMetadata } from "@/lib/google-books"
 import type { WishlistItem } from "@/lib/types"
 import { BookCover } from "@/components/book-cover"
 import { BookForm } from "@/components/book-form"
@@ -86,8 +86,8 @@ export function PendingSection() {
                     onClick={() => setMigrating(item)}
                     className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-1 text-xs font-medium text-accent-foreground transition hover:opacity-90"
                   >
-                    <Sparkles className="size-3.5" aria-hidden />
-                    Ya lo leí
+                    <BookOpen className="size-3.5" aria-hidden />
+                    Empezar a leer
                   </button>
                   <button
                     type="button"
@@ -118,7 +118,7 @@ export function PendingSection() {
             <BookSearch
               placeholder="Buscar por título o autor…"
               onSelect={(meta: BookMetadata) => {
-                addWishlist({
+                const created = addWishlist({
                   type: "book",
                   title: meta.title,
                   author: meta.author,
@@ -129,6 +129,11 @@ export function PendingSection() {
                   checked: false,
                 })
                 setAddOpen(false)
+                if (!meta.synopsis) {
+                  fetchSynopsis(meta.title, meta.author).then((found) => {
+                    if (found) updateWishlist(created.id, { synopsis: found })
+                  })
+                }
               }}
             />
           </div>
@@ -157,11 +162,8 @@ export function PendingSection() {
             synopsis: migrating.synopsis,
             status: "reading",
           }}
-          onClose={() => {
-            // If it now exists in the library (was saved), remove from wishlist.
-            deleteWishlist(migrating.id)
-            setMigrating(null)
-          }}
+          onSaved={() => deleteWishlist(migrating.id)}
+          onClose={() => setMigrating(null)}
         />
       )}
     </div>
