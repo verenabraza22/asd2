@@ -21,6 +21,11 @@ import { StarRating } from './star-rating'
 interface BookFormProps {
   open: boolean
   onClose: () => void
+  /** Called only after a successful save (add or edit) — never on cancel
+   * or closing without saving. Useful for callers that need to react to
+   * "this book now exists in the library", like removing it from a
+   * pending list it was migrated from. */
+  onSaved?: (book: Omit<Book, 'id' | 'createdAt'>) => void
   type: BookType
   /** Existing book to edit, or partial seed for a new book. */
   initial?: Partial<Book>
@@ -42,6 +47,7 @@ function todayStr() {
 export function BookForm({
   open,
   onClose,
+  onSaved,
   type,
   initial,
   editingId,
@@ -68,6 +74,7 @@ export function BookForm({
   const [genre, setGenre] = useState(initial?.genre ?? '')
   const [synopsis, setSynopsis] = useState(initial?.synopsis ?? '')
   const [findingSynopsis, setFindingSynopsis] = useState(false)
+  const [synopsisNotFound, setSynopsisNotFound] = useState(false)
   const [startDate, setStartDate] = useState(initial?.startDate ?? '')
   const [endDate, setEndDate] = useState(initial?.endDate ?? '')
   const [status, setStatus] = useState<ReadingStatus>(
@@ -96,6 +103,7 @@ export function BookForm({
     if (meta.coverUrl) setCoverUrl(meta.coverUrl)
     if (meta.pages) setPages(String(meta.pages))
     if (meta.genre) setGenre(meta.genre)
+    setSynopsisNotFound(false)
     if (meta.synopsis) {
       setSynopsis(meta.synopsis)
       return
@@ -103,11 +111,19 @@ export function BookForm({
     // The chosen result didn't come with a synopsis — look a bit harder
     // in the background rather than leaving the field empty.
     setSynopsis('')
+    searchSynopsis(meta.title, meta.author)
+  }
+
+  function searchSynopsis(t: string, a: string) {
+    if (!t.trim()) return
     setFindingSynopsis(true)
-    fetchSynopsis(meta.title, meta.author)
+    setSynopsisNotFound(false)
+    fetchSynopsis(t, a)
       .then((found) => {
         if (found) setSynopsis(found)
+        else setSynopsisNotFound(true)
       })
+      .catch(() => setSynopsisNotFound(true))
       .finally(() => setFindingSynopsis(false))
   }
 
@@ -138,6 +154,7 @@ export function BookForm({
     }
     if (editingId) updateBook(editingId, payload)
     else addBook(payload)
+    onSaved?.(payload)
     onClose()
   }
 
@@ -391,6 +408,20 @@ export function BookForm({
             value={synopsis}
             onChange={(e) => setSynopsis(e.target.value)}
           />
+          {synopsisNotFound && !synopsis && (
+            <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+              No encontramos una sinopsis en español automáticamente. Podés
+              escribirla vos, o
+              <button
+                type="button"
+                onClick={() => searchSynopsis(title, author)}
+                className="font-semibold text-primary underline-offset-2 hover:underline"
+              >
+                reintentar la búsqueda
+              </button>
+              .
+            </p>
+          )}
         </div>
 
         <div className="mt-5 flex justify-end gap-2">
