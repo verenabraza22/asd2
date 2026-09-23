@@ -91,52 +91,70 @@ function looksSpanish(text: string | undefined): text is string {
  * (which has a real description, unlike its search endpoint that only
  * offers a first line).
  */
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function tryGoogleDescription(
+  q: string,
+): Promise<{ desc?: string; rateLimited?: boolean }> {
+  try {
+    const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
+      q,
+    )}&maxResults=5&langRestrict=es&printType=books`
+    const res = await fetch(url)
+    if (res.status === 429) return { rateLimited: true }
+    if (!res.ok) return {}
+    const json = await res.json()
+    const items = (json.items ?? []) as any[]
+    for (const item of items) {
+      const desc = item.volumeInfo?.description as string | undefined
+      if (looksSpanish(desc)) return { desc }
+    }
+    return {}
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * A focused, best-effort lookup for a Spanish synopsis by title/author —
+ * used when a search result didn't already carry a good one. Tries a
+ * precise Google Books lookup first, then Open Library's full work record
+ * (which has a real description, unlike its search endpoint that only
+ * offers a first line).
+ *
+ * Google's free tier rate-limits aggressively (HTTP 429) when called many
+ * times in a row — as happens when backfilling a whole library. When that
+ * happens we back off instead of hammering it with a second Google call,
+ * and lean on Open Library instead.
+ */
 export async function fetchSynopsis(
   title: string,
   author?: string,
 ): Promise<string | undefined> {
-  // Attempt 1: precise field-scoped search. Multi-word values MUST be
-  // quoted for intitle:/inauthor: to match the whole phrase — without
-  // quotes, Google only binds the operator to the next single word and
-  // silently mis-parses everything else, which was returning nothing for
-  // almost every title.
-  try {
-    const q = `intitle:"${title}"${author ? ` inauthor:"${author}"` : ''}`
-    const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-      q,
-    )}&maxResults=5&langRestrict=es&printType=books`
-    const res = await fetch(url)
-    if (res.ok) {
-      const json = await res.json()
-      const items = (json.items ?? []) as any[]
-      for (const item of items) {
-        const desc = item.volumeInfo?.description as string | undefined
-        if (looksSpanish(desc)) return desc
-      }
-    }
-  } catch {
-    // fall through to the plain-text attempt below
+  // Multi-word values MUST be quoted for intitle:/inauthor: to match the
+  // whole phrase — without quotes, Google only binds the operator to the
+  // next single word and silently mis-parses the rest of the query.
+  const quoted = `intitle:"${title}"${author ? ` inauthor:"${author}"` : ''}`
+  let result = await tryGoogleDescription(quoted)
+  if (result.desc) return result.desc
+
+  if (result.rateLimited) {
+    // Give Google a moment to cool down and retry once before giving up
+    // on it entirely for this book.
+    await sleep(1500)
+    result = await tryGoogleDescription(quoted)
+    if (result.desc) return result.desc
   }
 
-  // Attempt 2: same plain free-text search style already used elsewhere
-  // in the app (proven to work reliably), as a safety net in case the
-  // field-scoped search above still finds nothing.
-  try {
-    const q = `${title} ${author ?? ''}`.trim()
-    const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
-      q,
-    )}&maxResults=5&langRestrict=es&printType=books`
-    const res = await fetch(url)
-    if (res.ok) {
-      const json = await res.json()
-      const items = (json.items ?? []) as any[]
-      for (const item of items) {
-        const desc = item.volumeInfo?.description as string | undefined
-        if (looksSpanish(desc)) return desc
-      }
-    }
-  } catch {
-    // fall through to Open Library below
+  // Only spend a second Google call on the plain-text fallback if Google
+  // itself wasn't the thing throttling us — otherwise this would just add
+  // to the pile-up instead of helping.
+  if (!result.rateLimited) {
+    const plain = `${title} ${author ?? ''}`.trim()
+    const plainResult = await tryGoogleDescription(plain)
+    if (plainResult.desc) return plainResult.desc
   }
 
   try {
@@ -173,10 +191,12 @@ async function searchGoogleBooks(
   query: string,
   max: number,
   startIndex = 0,
+  restrictToSpanish = true,
 ): Promise<SearchResult> {
+  const langParam = restrictToSpanish ? '&langRestrict=es' : ''
   const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
     query.trim(),
-  )}&maxResults=${max}&startIndex=${startIndex}&langRestrict=es&printType=books`
+  )}&maxResults=${max}&startIndex=${startIndex}${langParam}&printType=books`
   const res = await fetch(url)
   if (!res.ok) {
     // 429 (rate limit) / other non-OK responses are transient failures.
@@ -197,8 +217,18 @@ async function searchGoogleBooks(
         typeof v.averageRating === 'number' ? v.averageRating : undefined,
       ratingsCount:
         typeof v.ratingsCount === 'number' ? v.ratingsCount : undefined,
-    } as BookMetadata
+      language: v.language as string | undefined,
+    } as BookMetadata & { language?: string }
   })
+  if (!restrictToSpanish) {
+    // Broader, unrestricted search — still put Spanish-tagged editions
+    // first among the results rather than treating every language equally.
+    results.sort((a, b) => {
+      const aEs = a.language === 'es' ? 0 : 1
+      const bEs = b.language === 'es' ? 0 : 1
+      return aEs - bEs
+    })
+  }
   return { status: results.length ? 'ok' : 'empty', results }
 }
 
@@ -216,9 +246,10 @@ async function searchOpenLibrary(
   const json = await res.json()
   const docs = (json.docs ?? []) as any[]
   const results = docs
-    // Belt-and-suspenders: some entries have multiple editions in mixed
-    // languages, so also check the language field directly when present.
-    .filter((d) => !Array.isArray(d.language) || d.language.includes('spa'))
+    // Only keep results explicitly tagged Spanish — Open Library is our
+    // last resort now, so it's better to show fewer, reliable matches
+    // than let untagged (often English) entries slip through.
+    .filter((d) => Array.isArray(d.language) && d.language.includes('spa'))
     .map((d) => {
       const cover =
         typeof d.cover_i === 'number'
@@ -250,8 +281,14 @@ async function searchOpenLibrary(
 }
 
 /**
- * Search books with a multi-origin fallback: Google Books first, then
- * Open Library if Google errors out or returns nothing.
+ * Search books with a multi-step fallback:
+ * 1. Google Books, restricted to Spanish editions (best quality match).
+ * 2. If that finds nothing, Google Books again without the language
+ *    restriction — many real books simply don't have a Spanish-tagged
+ *    edition indexed, and showing nothing is worse than showing a match
+ *    the reader can fix up by hand. Spanish editions are still ranked
+ *    first within these broader results.
+ * 3. Open Library, as a last resort.
  */
 export async function searchBooks(
   query: string,
@@ -262,18 +299,30 @@ export async function searchBooks(
 
   let primary: SearchResult
   try {
-    primary = await searchGoogleBooks(query, max, startIndex)
+    primary = await searchGoogleBooks(query, max, startIndex, true)
   } catch {
     primary = { status: 'error', results: [] }
   }
   if (primary.status === 'ok') return primary
 
-  // Google failed or returned no results — try Open Library.
+  let broadened: SearchResult
+  try {
+    broadened = await searchGoogleBooks(query, max, startIndex, false)
+  } catch {
+    broadened = { status: 'error', results: [] }
+  }
+  if (broadened.status === 'ok') return broadened
+
+  // Neither Google attempt found anything — try Open Library.
   try {
     const secondary = await searchOpenLibrary(query, max, startIndex)
     if (secondary.status === 'ok') return secondary
     // Prefer a definitive "empty" over an "error" when either says empty.
-    if (secondary.status === 'empty' || primary.status === 'empty') {
+    if (
+      secondary.status === 'empty' ||
+      primary.status === 'empty' ||
+      broadened.status === 'empty'
+    ) {
       return { status: 'empty', results: [] }
     }
     return { status: 'error', results: [] }
