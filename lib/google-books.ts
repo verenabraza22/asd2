@@ -192,14 +192,16 @@ async function searchGoogleBooks(
   max: number,
   startIndex = 0,
   restrictToSpanish = true,
-): Promise<SearchResult> {
+): Promise<SearchResult & { rateLimited?: boolean }> {
   const langParam = restrictToSpanish ? '&langRestrict=es' : ''
   const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(
     query.trim(),
   )}&maxResults=${max}&startIndex=${startIndex}${langParam}&printType=books`
   const res = await fetch(url)
+  if (res.status === 429) {
+    return { status: 'error', results: [], rateLimited: true }
+  }
   if (!res.ok) {
-    // 429 (rate limit) / other non-OK responses are transient failures.
     return { status: 'error', results: [] }
   }
   const json = await res.json()
@@ -290,6 +292,17 @@ async function searchOpenLibrary(
  *    first within these broader results.
  * 3. Open Library, as a last resort.
  */
+/**
+ * Search books with a multi-step fallback:
+ * 1. Google Books, both restricted to Spanish editions AND unrestricted,
+ *    run together and merged. Running only the restricted search and
+ *    stopping as soon as it finds *anything* was the problem: a common
+ *    word (like a single-word translated title) can match a handful of
+ *    unrelated Spanish books, which would count as "found" and mask the
+ *    right book sitting in the broader, unrestricted results. Spanish
+ *    editions are still ranked first within the merged list.
+ * 2. Open Library, as a last resort if Google finds nothing at all.
+ */
 export async function searchBooks(
   query: string,
   max = 6,
@@ -297,21 +310,55 @@ export async function searchBooks(
 ): Promise<SearchResult> {
   if (!query.trim()) return { status: 'empty', results: [] }
 
-  let primary: SearchResult
-  try {
-    primary = await searchGoogleBooks(query, max, startIndex, true)
-  } catch {
-    primary = { status: 'error', results: [] }
+  let restricted = await searchGoogleBooks(query, max, startIndex, true).catch(
+    (): SearchResult => ({ status: 'error', results: [] }),
+  )
+  if (restricted.rateLimited) {
+    await new Promise((r) => setTimeout(r, 1200))
+    restricted = await searchGoogleBooks(query, max, startIndex, true).catch(
+      (): SearchResult => ({ status: 'error', results: [] }),
+    )
   }
-  if (primary.status === 'ok') return primary
 
-  let broadened: SearchResult
-  try {
-    broadened = await searchGoogleBooks(query, max, startIndex, false)
-  } catch {
-    broadened = { status: 'error', results: [] }
+  // Only spend a second Google call when the first one genuinely didn't
+  // give us much to work with — a generic word can "succeed" with a
+  // handful of unrelated matches, which is worth topping up, but a
+  // healthy list of results isn't worth doubling our request rate for.
+  // If Google is already rate-limiting us, skip straight past it instead
+  // of piling on a second call it will likely also reject.
+  const restrictedCount = restricted.status === 'ok' ? restricted.results.length : 0
+  let broadened: SearchResult & { rateLimited?: boolean } = {
+    status: 'empty',
+    results: [],
   }
-  if (broadened.status === 'ok') return broadened
+  if (restrictedCount < 3 && !restricted.rateLimited) {
+    broadened = await searchGoogleBooks(query, max, startIndex, false).catch(
+      (): SearchResult => ({ status: 'error', results: [] }),
+    )
+  }
+
+  // Interleave both result sets (rather than concatenating one after the
+  // other) so the broader search — which is where a disambiguated match
+  // often lives, when the Spanish-restricted search instead filled up on
+  // unrelated books sharing a common word — isn't pushed out of view by
+  // a full page of so-so matches from the restricted one.
+  const seen = new Set<string>()
+  const merged: BookMetadata[] = []
+  const maxLen = Math.max(restricted.results.length, broadened.results.length)
+  for (let i = 0; i < maxLen; i++) {
+    for (const list of [restricted.results, broadened.results]) {
+      const s = list[i]
+      if (!s) continue
+      const key = `${s.title.toLowerCase()}|${s.author.toLowerCase()}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      merged.push(s)
+    }
+  }
+
+  if (merged.length > 0) {
+    return { status: 'ok', results: merged.slice(0, Math.max(max, 8)) }
+  }
 
   // Neither Google attempt found anything — try Open Library.
   try {
@@ -320,14 +367,14 @@ export async function searchBooks(
     // Prefer a definitive "empty" over an "error" when either says empty.
     if (
       secondary.status === 'empty' ||
-      primary.status === 'empty' ||
+      restricted.status === 'empty' ||
       broadened.status === 'empty'
     ) {
       return { status: 'empty', results: [] }
     }
     return { status: 'error', results: [] }
   } catch {
-    return primary.status === 'empty'
+    return restricted.status === 'empty' || broadened.status === 'empty'
       ? { status: 'empty', results: [] }
       : { status: 'error', results: [] }
   }
