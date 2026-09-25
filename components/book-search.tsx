@@ -45,7 +45,7 @@ export function BookSearch({ onSelect, placeholder }: BookSearchProps) {
       setStatus(res.status)
       setLoading(false)
       setOpen(true)
-    }, 400)
+    }, 550)
     return () => {
       if (timer.current) clearTimeout(timer.current)
     }
